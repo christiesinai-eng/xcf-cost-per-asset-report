@@ -1,0 +1,17 @@
+{
+  "name": "cost-per-asset-report",
+  "version": "1.0.0",
+  "description": "Daily Cost per Asset report from Asana → HTML → Slack",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "run-now": "node src/index.js --run-now",
+    "test": "node src/index.js --run-now --dry-run"
+  },
+  "dependencies": {
+    "@slack/web-api": "^7.0.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.0",
+    "node-cron": "^3.0.0"
+  }
+}
