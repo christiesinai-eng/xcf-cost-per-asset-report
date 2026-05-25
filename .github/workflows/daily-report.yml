@@ -25,6 +25,7 @@ jobs:
 
       - name: Run report
         env:
+          TZ:                     Pacific/Auckland
           ASANA_TOKEN:            ${{ secrets.ASANA_TOKEN }}
           ASANA_WORKSPACE_GID:    ${{ secrets.ASANA_WORKSPACE_GID }}
           ASANA_TEAM_GID:         ${{ secrets.ASANA_TEAM_GID }}
