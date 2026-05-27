@@ -2,7 +2,7 @@ name: XCF Cost per Asset — Daily Report
 
 on:
   schedule:
-    - cron: "0 17 * * *"   # 5:00am NZT (UTC+12) every day
+    - cron: "0 16 * * *"   # 4:00am NZT (UTC+12) every day
   workflow_dispatch:         # allows manual trigger from GitHub UI
 
 jobs:
