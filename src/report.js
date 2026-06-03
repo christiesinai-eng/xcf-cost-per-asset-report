@@ -145,6 +145,7 @@ function generateHtml(data) {
   </div>
   <div class="header-meta">
     <div class="rate">Rate: $${process.env.DEFAULT_MINUTE_RATE || "2.33"} NZD/min (~$${fmt(parseFloat(process.env.DEFAULT_MINUTE_RATE || "2.33") * 60, 0)}/hr)</div>
+    <div style="font-size:12px;color:var(--accent2);margin-top:4px;text-align:right">✔ Completed tasks only</div>
     <div class="gentime">Generated ${generatedAt.toLocaleTimeString("en-NZ")}</div>
   </div>
 </div>
@@ -374,12 +375,11 @@ function updateSortHeaders(tableId, col, dir) {
 function renderOverview() {
   const cpa = TOTALS.totalAssets>0 ? fmtNZD(TOTALS.totalCostNZD/TOTALS.totalAssets) : '—';
   const kpis = [
-    { label:'Total Pipeline Cost', value:fmtNZD(TOTALS.totalCostNZD),  sub:fmt(TOTALS.totalHours,0)+'h · '+fmt(TOTALS.totalAssets)+' assets' },
-    { label:'Avg Cost per Asset',  value:cpa,                           sub:'portfolio average' },
-    { label:'Cost Today',          value:fmtNZD(TOTALS.costToday),      sub:fmt(TOTALS.hoursToday,1)+'h today' },
-    { label:'Next 7 Days',         value:fmtNZD(TOTALS.costNext7),      sub:fmt(TOTALS.hoursNext7,1)+'h' },
-    { label:'Next 21 Days',        value:fmtNZD(TOTALS.costNext21),     sub:fmt(TOTALS.hoursNext21,1)+'h' },
-    { label:'Team Members',        value:TOTALS.memberCount,             sub:TOTALS.projectCount+' projects' },
+    { label:'Total Delivered Cost', value:fmtNZD(TOTALS.totalCostNZD), sub:fmt(TOTALS.totalHours,0)+'h · '+fmt(TOTALS.totalAssets)+' assets' },
+    { label:'Avg Cost per Asset',   value:cpa,                          sub:'across all completed work' },
+    { label:'Total Assets',         value:fmt(TOTALS.totalAssets),      sub:fmt(TOTALS.totalHours,0)+'h of work' },
+    { label:'Total Hours',          value:fmt(TOTALS.totalHours,0)+'h', sub:'estimated time' },
+    { label:'Team Members',         value:TOTALS.memberCount,            sub:TOTALS.projectCount+' projects' },
   ];
   document.getElementById('kpi-grid').innerHTML = kpis.map(k=>\`
     <div class="kpi">
@@ -642,8 +642,10 @@ function applyDateRange() {
 
   const fromD = new Date(from), toD = new Date(to);
   const tasks = getAllTasksFlat().filter(t => {
-    if (!t.due_on) return false;
-    const d = new Date(t.due_on);
+    // Filter by completed_at (when work was actually delivered)
+    const dateStr = t.completed_at ? t.completed_at.slice(0,10) : t.due_on;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
     if (d < fromD || d > toD) return false;
     if (pod    && getEnumField(t, FIELD_PODS) !== pod) return false;
     if (person && t._memberName !== person) return false;
@@ -663,7 +665,7 @@ function applyDateRange() {
   ].map(([l,v])=>\`<div class="kpi"><div class="label">\${esc(l)}</div><div class="value">\${esc(String(v))}</div></div>\`).join('');
 
   const sorted = [...tasks].sort((a,b)=>taskCostCalc(b)-taskCostCalc(a));
-  document.getElementById('dr-count').textContent = sorted.length+' task'+(sorted.length!==1?'s':'')+' due in range';
+  document.getElementById('dr-count').textContent = sorted.length+' completed task'+(sorted.length!==1?'s':'')+' delivered in range';
   document.getElementById('dr-body').innerHTML = sorted.map(t => {
     const h=taskHours(t), a=taskAssets(t), cost=taskCostCalc(t);
     const podName = getEnumField(t, FIELD_PODS) || '—';

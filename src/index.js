@@ -26,7 +26,7 @@ async function run() {
   try {
     console.log("\n[1/3] Fetching Asana data...");
     const data = await fetchReportData();
-    console.log(`   ↳ ${data.members.length} members · ${data.totals.overdueCount} overdue · ${data.totals.missingFieldsCount} missing`);
+    console.log(`   ↳ ${data.members.length} members · ${data.totals.taskCount} completed tasks · ${data.totals.missingFieldsCount} missing fields`);
     console.log("\n[2/3] Generating HTML report...");
     const html = generateHtml(data);
     const reportPath = saveReport(html, now);

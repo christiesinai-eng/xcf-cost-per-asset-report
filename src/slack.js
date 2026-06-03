@@ -30,20 +30,15 @@ async function postToSlack(data, reportFilePath, dryRun = false) {
 
   const summary = [
     `📲 *XCF Cost per Asset Report — ${dayStr} ${dateStr}*`,
+    `_Completed tasks only · XCF projects (X/8/9 prefix) · no multi-homed duplicates_`,
     ``,
-    `*Portfolio Overview*`,
-    `📦  Total pipeline cost: *${fmtNZD(totals.totalCostNZD)}*  (${fmt(totals.totalHours, 0)}h / ${fmt(totals.totalAssets)} assets)`,
+    `*Delivered Work*`,
+    `📦  Total delivered cost: *${fmtNZD(totals.totalCostNZD)}*  (${fmt(totals.totalHours, 0)}h / ${fmt(totals.totalAssets)} assets)`,
     `🎯  Avg cost per asset: *${globalCPA}*`,
-    `📅  Cost today: *${fmtNZD(totals.costToday)}*  (${fmt(totals.hoursToday, 1)}h)`,
-    `📆  Next 7 days: *${fmtNZD(totals.costNext7)}*`,
-    `🗓️  Next 21 days: *${fmtNZD(totals.costNext21)}*`,
     ``,
-    `*Team Status*`,
-    `👥  ${totals.memberCount} active team members across ${totals.projectCount} project(s)`,
-    `🔴  ${totals.overCapacityCount} over capacity (>8h today)`,
-    `🟢  ${totals.availableCount} available (<3h today)`,
-    `⚠️  ${totals.overdueCount} overdue tasks`,
-    `🟡  ${totals.missingFieldsCount} tasks missing fields`,
+    `*Team*`,
+    `👥  ${totals.memberCount} team members across ${totals.projectCount} project(s)`,
+    `🟡  ${totals.missingFieldsCount} completed tasks missing fields`,
   ].join("\n");
 
   const topCost = members.slice(0, 4).map((m) => {
