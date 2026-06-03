@@ -56,20 +56,23 @@ function extractAssetType(task) {
   if (enumVal && enumVal !== "Other") return enumVal;
 
   const name = (task.name || "").toLowerCase();
-  if (/\bvideo\b|\breels?\b|\bfilm\b/.test(name))                              return "Video";
-  if (/\bgif\b|\banimation\b|\bmotion\b/.test(name))                           return "Animation";
-  if (/\bbanner\b/.test(name))                                                  return "Banner";
-  if (/\bemail\b|\bedm\b|\bnewsletter\b/.test(name))                           return "Email";
+  if (/\bvideo\b|\breels?\b|\bfilm\b/.test(name))                                          return "Video";
+  if (/\bstoryboard\b|\bboardomatic\b/.test(name))                                         return "Storyboard";
+  if (/\bgif\b|\banimation\b|\bmotion\b/.test(name))                                       return "Animation";
+  if (/\bbanner\b|\bresize\b/.test(name))                                                   return "Banner";
+  if (/\bemail\b|\bedm\b|\bnewsletter\b/.test(name))                                       return "Email";
   if (/\bsocial\b|\binstagram\b|\blinkedin\b|\bfacebook\b|\bmeta\b|\btiktok\b/.test(name)) return "Social";
-  if (/\blogo\b/.test(name))                                                    return "Logo";
-  if (/\btemplate\b|\bcanva\b/.test(name))                                      return "Template";
-  if (/\bpresentation\b|\bdeck\b|\bslides?\b/.test(name))                      return "Presentation";
-  if (/\bprint\b|\bposter\b|\bbillboard\b|\bsignage\b|\bcling\b|\bflyer\b/.test(name)) return "Print / Signage";
-  if (/\billustration\b|\bicon\b/.test(name))                                  return "Illustration";
-  if (/\bcopy\b|\bwriting\b|\bcontent\b|\bblog\b/.test(name))                  return "Copy";
-  if (/\bguide\b|\bdocument\b|\breport\b|\bbrief\b/.test(name))               return "Document";
-  if (/\bwebsite\b|\bweb\b|\blanding\b/.test(name))                            return "Web";
-  if (/\bevent\b|\bxerocon\b|\bwebinar\b|\bconference\b/.test(name))          return "Event";
+  if (/\blogo\b/.test(name))                                                                return "Logo";
+  if (/\btemplate\b|\bcanva\b/.test(name))                                                  return "Template";
+  if (/\bpresentation\b|\bdeck\b|\bslides?\b|\bpowerpoint\b/.test(name))                   return "Presentation";
+  if (/\bprint\b|\bposter\b|\bbillboard\b|\bsignage\b|\bcling\b|\bflyer\b/.test(name))     return "Print / Signage";
+  if (/\billustration\b|\bicon\b/.test(name))                                               return "Illustration";
+  if (/\bcopy\b|\bwriting\b|\bcontent\b|\bblog\b/.test(name))                              return "Copy";
+  if (/\bguide\b|\bdocument\b|\breport\b|\bbrief\b/.test(name))                            return "Document";
+  if (/\bwebsite\b|\bweb\b|\blanding\b|\bhero\b/.test(name))                               return "Web / Hero";
+  if (/\bevent\b|\bxerocon\b|\bwebinar\b|\bconference\b/.test(name))                       return "Event";
+  if (/\bdelivery support\b|\bdelivery\b/.test(name))                                      return "Delivery Support";
+  if (/\bcomms\b|\bcommunication\b/.test(name))                                             return "Communications";
   if (enumVal) return enumVal;
   return "Other";
 }
@@ -287,9 +290,10 @@ async function fetchReportData() {
         pa.totalCostNZD += cost; pa.totalAssets += assets;
       }
 
-      if (!deliverableMap.has(assetType)) deliverableMap.set(assetType, { name: assetType, totalCostNZD: 0, totalAssets: 0, taskCount: 0 });
+      if (!deliverableMap.has(assetType)) deliverableMap.set(assetType, { name: assetType, totalCostNZD: 0, totalAssets: 0, taskCount: 0, tasks: [] });
       const d = deliverableMap.get(assetType);
       d.totalCostNZD += cost; d.totalAssets += assets; d.taskCount++;
+      d.tasks.push({ gid: task.gid, name: task.name, memberName: m.name, projectName: task.projectName, cost, assets });
     }
   }
 

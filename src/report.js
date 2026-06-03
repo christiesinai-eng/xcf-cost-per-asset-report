@@ -434,14 +434,33 @@ function renderOverview() {
     </div>\`;
   }).join('');
 
-  // Horizontal bars — asset types
+  // Horizontal bars — asset types (click any row to drill down)
   const maxD = BY_DEL[0]?.totalCostNZD || 1;
-  document.getElementById('deliverable-bars').innerHTML = BY_DEL.slice(0,15).map((d,i)=>\`
-    <div class="hbar-row">
-      <div class="hbar-label" title="\${esc(d.name)}">\${esc(d.name)}</div>
-      <div class="hbar-track"><div class="hbar-fill" style="width:\${Math.round(d.totalCostNZD/maxD*100)}%;background:\${PALETTE[i%PALETTE.length]}"></div></div>
-      <div class="hbar-value">\${fmtNZD(d.totalCostNZD)}</div>
-    </div>\`).join('') || '<div class="empty">No data</div>';
+  document.getElementById('deliverable-bars').innerHTML = BY_DEL.slice(0,15).map((d,i) => {
+    const safeId = 'del_' + d.name.replace(/[^a-zA-Z0-9]/g,'_');
+    const topTasks = (d.tasks||[]).slice().sort((a,b)=>b.cost-a.cost).slice(0,20);
+    const taskRows = topTasks.map(t=>\`
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">
+          <a href="\${asanaLink(t.gid)}" target="_blank" style="color:var(--text)">\${esc(t.name)}</a>
+        </div>
+        <div style="font-size:11px;color:var(--muted);white-space:nowrap;padding-right:8px">\${esc(t.memberName||'')}</div>
+        <div style="font-size:11px;color:var(--accent2);white-space:nowrap">\${fmtNZD(t.cost)}</div>
+      </div>\`).join('');
+    return \`
+    <div>
+      <div class="hbar-row" onclick="toggleDel('\${safeId}')" style="cursor:pointer" title="Click to expand">
+        <div class="hbar-label" title="\${esc(d.name)}">\${esc(d.name)}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:\${Math.round(d.totalCostNZD/maxD*100)}%;background:\${PALETTE[i%PALETTE.length]}"></div></div>
+        <div class="hbar-value">\${fmtNZD(d.totalCostNZD)}</div>
+        <div style="width:16px;flex-shrink:0;font-size:10px;color:var(--muted);text-align:right" id="\${safeId}_arrow">▶</div>
+      </div>
+      <div id="\${safeId}" style="display:none;padding:8px 4px 4px;margin-bottom:4px">
+        \${taskRows || '<div style="font-size:11px;color:var(--muted);padding:4px 0">No tasks</div>'}
+        \${(d.tasks||[]).length > 20 ? \`<div style="font-size:11px;color:var(--muted);margin-top:4px">+ \${(d.tasks||[]).length-20} more — use Date Range tab to filter</div>\` : ''}
+      </div>
+    </div>\`;
+  }).join('') || '<div class="empty">No data</div>';
 
   // Horizontal bars — POD teams
   const maxP = BY_POD[0]?.totalCostNZD || 1;
@@ -451,6 +470,15 @@ function renderOverview() {
       <div class="hbar-track"><div class="hbar-fill" style="width:\${Math.round(p.totalCostNZD/maxP*100)}%;background:\${PALETTE[i%PALETTE.length]}"></div></div>
       <div class="hbar-value">\${fmtNZD(p.totalCostNZD)}</div>
     </div>\`).join('') || '<div class="empty">No data</div>';
+}
+
+function toggleDel(id) {
+  const el  = document.getElementById(id);
+  const arr = document.getElementById(id+'_arrow');
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display  = open ? 'none' : 'block';
+  if (arr) arr.textContent = open ? '▶' : '▼';
 }
 
 // ── BY PERSON ─────────────────────────────────────────────────
