@@ -810,7 +810,7 @@ function filterMissing() {
     return \`<tr>
       <td><a href="\${asanaLink(t.gid)}" target="_blank">\${esc(t.name)}</a></td>
       <td>\${esc(t.memberName||t.assignee?.name||'')}</td>
-      <td style="color:var(--muted);font-size:12px">\${esc(t.projectName||'')}</td>
+      <td>\${esc(t.projectName||'—')}</td>
       <td>\${esc(pod)}</td>
       <td style="color:var(--muted)">\${t.completed_at?.slice(0,10)||'—'}</td>
       <td>\${fix}</td>
