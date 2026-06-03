@@ -9,6 +9,8 @@ jobs:
   run-report:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write        # needed to push to gh-pages
 
     steps:
       - name: Checkout code
@@ -35,3 +37,19 @@ jobs:
           EXCLUDED_MEMBER_GIDS:   ${{ secrets.EXCLUDED_MEMBER_GIDS }}
           REPORTS_DIR:            /tmp/reports
         run: node src/index.js --run-now
+
+      - name: Publish to GitHub Pages
+        run: |
+          REPORT=$(ls /tmp/reports/xcf-cost-per-asset-*.html | sort | tail -1)
+
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+
+          git fetch origin gh-pages 2>/dev/null || true
+          git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+
+          cp "$REPORT" index.html
+
+          git add index.html
+          git commit -m "Update report $(date +%Y-%m-%d)" || echo "No changes"
+          git push origin gh-pages
