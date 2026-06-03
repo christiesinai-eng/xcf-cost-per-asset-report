@@ -78,12 +78,17 @@ function extractAssetType(task) {
 }
 
 function isMissingFields(task) {
+  // Exclude admin/template task types that will never have cost data
+  const name = (task.name || "").toLowerCase();
+  if (name.includes("attach deliverables sheet")) return false;
+  if (name.includes("[converted to project]"))    return false;
+
   // Only flag if cost genuinely can't be calculated —
   // i.e. neither the pre-calculated Asset cost nor Estimated time is set
   const preCalc = getNumField(task, FIELD.ASSET_COST);
-  if (preCalc != null && preCalc > 0) return false; // pre-calculated cost exists, fine
+  if (preCalc != null && preCalc > 0) return false;
   const mins = getNumField(task, FIELD.ESTIMATED_TIME);
-  return !mins; // no estimated time AND no pre-calc = can't calculate cost
+  return !mins;
 }
 
 function taskCost(task) {
