@@ -17,7 +17,7 @@ function fmt(n, d = 0) {
 }
 
 function generateHtml(data) {
-  const { members, totals, allOverdue, byPod, byDeliverable, completedProjects, generatedAt } = data;
+  const { members, totals, allOverdue, allMissing, byPod, byDeliverable, completedProjects, generatedAt } = data;
 
   const dateStr = generatedAt.toLocaleDateString("en-NZ", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -27,12 +27,13 @@ function generateHtml(data) {
     ? fmtNZD(totals.totalCostNZD / totals.totalAssets)
     : "—";
 
-  const membersJson          = JSON.stringify(members);
-  const totalsJson           = JSON.stringify(totals);
-  const byPodJson            = JSON.stringify(byPod || []);
-  const byDelJson            = JSON.stringify(byDeliverable || []);
+  const membersJson           = JSON.stringify(members);
+  const totalsJson            = JSON.stringify(totals);
+  const byPodJson             = JSON.stringify(byPod || []);
+  const byDelJson             = JSON.stringify(byDeliverable || []);
   const completedProjectsJson = JSON.stringify(completedProjects || []);
-  const generatedAtJson      = JSON.stringify(generatedAt.toISOString());
+  const allMissingJson        = JSON.stringify(allMissing || []);
+  const generatedAtJson       = JSON.stringify(generatedAt.toISOString());
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -187,6 +188,7 @@ function checkPw(){
   <div class="tab" onclick="switchTab('byPod')">By POD</div>
   <div class="tab" onclick="switchTab('tasks')">All Tasks</div>
   <div class="tab" onclick="switchTab('byProject')">By Project</div>
+  <div class="tab" onclick="switchTab('missing')">Missing Fields <span id="badge-missing" style="background:rgba(245,158,11,.25);color:#fbbf24;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px"></span></div>
   <div class="tab" onclick="switchTab('dateRange')">Date Range</div>
 </div>
 
@@ -300,6 +302,45 @@ function checkPw(){
   </div>
 </div>
 
+<!-- ════════ MISSING FIELDS ════════ -->
+<div id="view-missing" class="view">
+
+  <!-- Formula explanation -->
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:22px">
+    <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px">💡 How cost is calculated</div>
+    <div style="font-size:13px;color:var(--text);margin-bottom:8px">
+      For each task, cost is taken from whichever field is available — in priority order:
+    </div>
+    <div style="background:var(--bg3);border-radius:8px;padding:14px 18px;font-family:monospace;font-size:13px;color:var(--accent2);margin-bottom:12px">
+      Cost = <span style="color:#fbbf24">XCF: Asset cost</span> &nbsp;(pre-calculated field)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;OR&nbsp; <span style="color:#fbbf24">Estimated time (mins)</span> × <span style="color:#fbbf24">Average Minute Rate (XCF)</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;OR&nbsp; <span style="color:#fbbf24">Estimated time (mins)</span> × $2.33 NZD/min <span style="color:var(--muted)">(default rate)</span>
+    </div>
+    <div style="font-size:12px;color:var(--warn)">
+      ⚠️ Tasks below have <strong>neither</strong> field set — they contribute <strong>$0</strong> to the report and are skewing your totals downward.
+      Fix them in Asana by adding either <em>Estimated time</em> or the pre-calculated <em>XCF: Asset cost</em> value.
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:13px;color:var(--muted)" id="missing-count"></div>
+    <input class="search" id="missing-search" placeholder="Search task or person..." oninput="filterMissing()">
+  </div>
+  <div class="card">
+    <table id="missing-table">
+      <thead><tr>
+        <th onclick="sortTable('missing',0)">Task <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('missing',1)">Assignee <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('missing',2)">Project <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('missing',3)">POD <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('missing',4)">Completed <span class="sort-arrow">↕</span></th>
+        <th>Fix needed</th>
+      </tr></thead>
+      <tbody id="missing-body"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ════════ DATE RANGE ════════ -->
 <div id="view-dateRange" class="view">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:22px">
@@ -363,6 +404,7 @@ const TOTALS              = ${totalsJson};
 const BY_POD              = ${byPodJson};
 const BY_DEL              = ${byDelJson};
 const COMPLETED_PROJECTS  = ${completedProjectsJson};
+const ALL_MISSING         = ${allMissingJson};
 const GENERATED_AT        = new Date(${generatedAtJson});
 
 // ── helpers ──────────────────────────────────────────────────
@@ -402,7 +444,7 @@ const FIELD_PODS = '1211165589636938';
 const PALETTE = ['#6c63ff','#00d4aa','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#22c55e','#f97316','#06b6d4'];
 
 // ── tabs ──────────────────────────────────────────────────────
-const TAB_IDS = ['overview','byPerson','byPod','tasks','byProject','dateRange'];
+const TAB_IDS = ['overview','byPerson','byPod','tasks','byProject','missing','dateRange'];
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', TAB_IDS[i]===name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id==='view-'+name));
@@ -419,6 +461,7 @@ function sortTable(id, col) {
   if (id==='tasks')     { filterTasks();     return; }
   if (id==='byPod')     { renderByPod();     return; }
   if (id==='byProject') { filterByProject(); return; }
+  if (id==='missing')   { filterMissing();   return; }
 }
 function updateSortHeaders(tableId, col, dir) {
   document.querySelectorAll('#'+tableId+' th').forEach((th,i) => {
@@ -738,6 +781,45 @@ function toggleProject(id) {
   const row = document.getElementById(id+'-row');
   if (row) row.style.display = row.style.display==='none' ? 'table-row' : 'none';
 }
+// ── MISSING FIELDS ───────────────────────────────────────────
+function renderMissing() {
+  const badge = document.getElementById('badge-missing');
+  if (badge) badge.textContent = ALL_MISSING.length > 0 ? ALL_MISSING.length : '';
+  filterMissing();
+}
+function filterMissing() {
+  const q = (document.getElementById('missing-search')?.value||'').toLowerCase();
+  const filtered = ALL_MISSING.filter(t =>
+    t.name.toLowerCase().includes(q) || (t.memberName||'').toLowerCase().includes(q)
+  );
+  const {col,dir} = sortState['missing']||{col:4,dir:'desc'};
+  const podOf = t => { const f=(t.custom_fields||[]).find(f=>f.gid===FIELD_PODS); return f?.enum_value?.name||'—'; };
+  const getVal = (t,c) => [t.name, t.memberName||'', t.projectName||'', podOf(t), t.completed_at||''][c];
+  const sorted = [...filtered].sort((a,b)=>{const av=getVal(a,col),bv=getVal(b,col);return dir==='asc'?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);});
+  document.getElementById('missing-count').textContent =
+    sorted.length + ' task' + (sorted.length!==1?'s':'') + ' contributing $0 to cost totals';
+  document.getElementById('missing-body').innerHTML = sorted.map(t => {
+    const pod = podOf(t);
+    const hasEst  = (t.custom_fields||[]).some(f=>f.gid==='1203387567618671' && f.number_value);
+    const hasCost = (t.custom_fields||[]).some(f=>f.gid==='1213828392202051' && f.number_value);
+    const fix = !hasEst && !hasCost
+      ? '<span class="badge yellow">Add Estimated time or Asset cost</span>'
+      : !hasEst
+        ? '<span class="badge yellow">Add Estimated time</span>'
+        : '<span class="badge yellow">Add Asset cost</span>';
+    return \`<tr>
+      <td><a href="\${asanaLink(t.gid)}" target="_blank">\${esc(t.name)}</a></td>
+      <td>\${esc(t.memberName||t.assignee?.name||'')}</td>
+      <td style="color:var(--muted);font-size:12px">\${esc(t.projectName||'')}</td>
+      <td>\${esc(pod)}</td>
+      <td style="color:var(--muted)">\${t.completed_at?.slice(0,10)||'—'}</td>
+      <td>\${fix}</td>
+    </tr>\`;
+  }).join('') || '<tr><td colspan="6" class="empty">No tasks with missing cost fields 🎉</td></tr>';
+  updateSortHeaders('missing-table', col, dir);
+  sortState['missing'] = sortState['missing'] || {col:4,dir:'desc'};
+}
+
 // ── DATE RANGE ────────────────────────────────────────────────
 let _allTasksCache = null;
 function getAllTasksFlat() {
@@ -832,6 +914,7 @@ renderByPerson();
 renderByPod();
 renderTasks();
 renderByProject();
+renderMissing();
 initDateRange();
 </script>
 </body>

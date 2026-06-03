@@ -78,8 +78,12 @@ function extractAssetType(task) {
 }
 
 function isMissingFields(task) {
+  // Only flag if cost genuinely can't be calculated —
+  // i.e. neither the pre-calculated Asset cost nor Estimated time is set
+  const preCalc = getNumField(task, FIELD.ASSET_COST);
+  if (preCalc != null && preCalc > 0) return false; // pre-calculated cost exists, fine
   const mins = getNumField(task, FIELD.ESTIMATED_TIME);
-  return !mins || !task.due_on;
+  return !mins; // no estimated time AND no pre-calc = can't calculate cost
 }
 
 function taskCost(task) {
