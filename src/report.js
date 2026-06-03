@@ -17,7 +17,7 @@ function fmt(n, d = 0) {
 }
 
 function generateHtml(data) {
-  const { members, totals, allOverdue, byPod, byDeliverable, generatedAt } = data;
+  const { members, totals, allOverdue, byPod, byDeliverable, completedProjects, generatedAt } = data;
 
   const dateStr = generatedAt.toLocaleDateString("en-NZ", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -27,11 +27,12 @@ function generateHtml(data) {
     ? fmtNZD(totals.totalCostNZD / totals.totalAssets)
     : "—";
 
-  const membersJson     = JSON.stringify(members);
-  const totalsJson      = JSON.stringify(totals);
-  const byPodJson       = JSON.stringify(byPod || []);
-  const byDelJson       = JSON.stringify(byDeliverable || []);
-  const generatedAtJson = JSON.stringify(generatedAt.toISOString());
+  const membersJson          = JSON.stringify(members);
+  const totalsJson           = JSON.stringify(totals);
+  const byPodJson            = JSON.stringify(byPod || []);
+  const byDelJson            = JSON.stringify(byDeliverable || []);
+  const completedProjectsJson = JSON.stringify(completedProjects || []);
+  const generatedAtJson      = JSON.stringify(generatedAt.toISOString());
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -185,6 +186,7 @@ function checkPw(){
   <div class="tab" onclick="switchTab('byPerson')">By Person</div>
   <div class="tab" onclick="switchTab('byPod')">By POD</div>
   <div class="tab" onclick="switchTab('tasks')">All Tasks</div>
+  <div class="tab" onclick="switchTab('byProject')">By Project</div>
   <div class="tab" onclick="switchTab('dateRange')">Date Range</div>
 </div>
 
@@ -275,6 +277,29 @@ function checkPw(){
   </div>
 </div>
 
+<!-- ════════ BY PROJECT ════════ -->
+<div id="view-byProject" class="view">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="font-size:13px;color:var(--muted)" id="byProject-count"></div>
+    <input class="search" id="byProject-search" placeholder="Search project..." oninput="filterByProject()">
+  </div>
+  <div class="card">
+    <table id="byProject-table">
+      <thead><tr>
+        <th onclick="sortTable('byProject',0)">Project <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('byProject',1)">Completed <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('byProject',2)">Total Cost <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('byProject',3)">Assets <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('byProject',4)">Cost/Asset <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('byProject',5)">Hours <span class="sort-arrow">↕</span></th>
+        <th onclick="sortTable('byProject',6)">Team <span class="sort-arrow">↕</span></th>
+        <th></th>
+      </tr></thead>
+      <tbody id="byProject-body"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ════════ DATE RANGE ════════ -->
 <div id="view-dateRange" class="view">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:22px">
@@ -333,11 +358,12 @@ function checkPw(){
 </div><!-- /content -->
 
 <script>
-const MEMBERS      = ${membersJson};
-const TOTALS       = ${totalsJson};
-const BY_POD       = ${byPodJson};
-const BY_DEL       = ${byDelJson};
-const GENERATED_AT = new Date(${generatedAtJson});
+const MEMBERS             = ${membersJson};
+const TOTALS              = ${totalsJson};
+const BY_POD              = ${byPodJson};
+const BY_DEL              = ${byDelJson};
+const COMPLETED_PROJECTS  = ${completedProjectsJson};
+const GENERATED_AT        = new Date(${generatedAtJson});
 
 // ── helpers ──────────────────────────────────────────────────
 const fmtNZD = (n) => new Intl.NumberFormat('en-NZ',{style:'currency',currency:'NZD',minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0);
@@ -376,7 +402,7 @@ const FIELD_PODS = '1211165589636938';
 const PALETTE = ['#6c63ff','#00d4aa','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#22c55e','#f97316','#06b6d4'];
 
 // ── tabs ──────────────────────────────────────────────────────
-const TAB_IDS = ['overview','byPerson','byPod','tasks','dateRange'];
+const TAB_IDS = ['overview','byPerson','byPod','tasks','byProject','dateRange'];
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', TAB_IDS[i]===name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id==='view-'+name));
@@ -389,9 +415,10 @@ function sortTable(id, col) {
   s.dir = s.col===col ? (s.dir==='asc'?'desc':'asc') : 'desc';
   s.col = col;
   sortState[id] = s;
-  if (id==='byPerson') { filterByPerson(); return; }
-  if (id==='tasks')    { filterTasks();    return; }
-  if (id==='byPod')    { renderByPod();    return; }
+  if (id==='byPerson')  { filterByPerson();  return; }
+  if (id==='tasks')     { filterTasks();     return; }
+  if (id==='byPod')     { renderByPod();     return; }
+  if (id==='byProject') { filterByProject(); return; }
 }
 function updateSortHeaders(tableId, col, dir) {
   document.querySelectorAll('#'+tableId+' th').forEach((th,i) => {
@@ -654,6 +681,63 @@ function renderTasksTable(rows) {
   updateSortHeaders('tasks-table', col, dir);
 }
 
+// ── BY PROJECT ───────────────────────────────────────────────
+function renderByProject() {
+  sortState['byProject'] = sortState['byProject'] || {col:2, dir:'desc'};
+  filterByProject();
+}
+function filterByProject() {
+  const q = (document.getElementById('byProject-search')?.value||'').toLowerCase();
+  const filtered = COMPLETED_PROJECTS.filter(p => p.name.toLowerCase().includes(q));
+  const {col,dir} = sortState['byProject']||{col:2,dir:'desc'};
+  const getVal = (p,c) => [p.name, p.completedAt||'', p.totalCostNZD, p.totalAssets, p.totalAssets>0?p.totalCostNZD/p.totalAssets:0, p.totalHours, p.memberCount][c];
+  const sorted = [...filtered].sort((a,b)=>{const av=getVal(a,col),bv=getVal(b,col);return dir==='asc'?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);});
+  document.getElementById('byProject-count').textContent = sorted.length+' completed project'+(sorted.length!==1?'s':'');
+  const maxC = Math.max(...sorted.map(p=>p.totalCostNZD),1);
+  document.getElementById('byProject-body').innerHTML = sorted.map(p=>{
+    const cpa  = p.totalAssets>0 ? fmtNZD(p.totalCostNZD/p.totalAssets) : '—';
+    const pct  = Math.round((p.totalCostNZD/maxC)*100);
+    const safeId = 'proj_'+p.gid;
+    const memberRows = (p.members||[]).map(m=>{
+      const mcpa = m.totalAssets>0?fmtNZD(m.totalCostNZD/m.totalAssets):'—';
+      return \`<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid var(--border)">\${esc(m.name)}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid var(--border)">\${fmtNZD(m.totalCostNZD)}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid var(--border)">\${fmt(m.totalAssets)}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid var(--border)">\${mcpa}</td>
+      </tr>\`;
+    }).join('');
+    return \`<tr>
+      <td style="font-weight:600;max-width:280px">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${esc(p.name)}">\${esc(p.name)}</div>
+      </td>
+      <td style="color:var(--muted)">\${p.completedAt||'—'}</td>
+      <td>\${fmtNZD(p.totalCostNZD)}<br><div class="bar-wrap" style="margin-top:4px"><div class="bar-fill" style="width:\${pct}%;background:var(--accent2)"></div></div></td>
+      <td>\${fmt(p.totalAssets)}</td>
+      <td>\${cpa}</td>
+      <td>\${fmt(p.totalHours,1)}h</td>
+      <td>\${p.memberCount}</td>
+      <td><button onclick="toggleProject('\${safeId}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:12px">▼ Team</button></td>
+    </tr>
+    <tr id="\${safeId}-row" style="display:none">
+      <td colspan="8" style="padding:0">
+        <div style="padding:14px 20px;background:var(--bg3);border-top:1px solid var(--border)">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr>
+              \${['Member','Cost','Assets','Cost/Asset'].map(h=>\`<th style="padding:4px 10px;text-align:left;color:var(--muted);border-bottom:1px solid var(--border)">\${h}</th>\`).join('')}
+            </tr></thead>
+            <tbody>\${memberRows || '<tr><td colspan="4" style="padding:8px 10px;color:var(--muted)">No member data</td></tr>'}</tbody>
+          </table>
+        </div>
+      </td>
+    </tr>\`;
+  }).join('') || '<tr><td colspan="8" class="empty">No completed projects found</td></tr>';
+  updateSortHeaders('byProject-table', col, dir);
+}
+function toggleProject(id) {
+  const row = document.getElementById(id+'-row');
+  if (row) row.style.display = row.style.display==='none' ? 'table-row' : 'none';
+}
 // ── DATE RANGE ────────────────────────────────────────────────
 let _allTasksCache = null;
 function getAllTasksFlat() {
@@ -747,6 +831,7 @@ renderOverview();
 renderByPerson();
 renderByPod();
 renderTasks();
+renderByProject();
 initDateRange();
 </script>
 </body>

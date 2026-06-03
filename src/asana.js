@@ -214,6 +214,67 @@ function buildMemberData(memberInfo, tasks) {
   };
 }
 
+async function fetchCompletedProjectCosts() {
+  const c = client();
+  // Fetch all projects (including completed ones — no archived:false filter here)
+  let all = [], offset = null;
+  const teamGid = process.env.ASANA_TEAM_GID;
+  do {
+    const params = { opt_fields: "gid,name,completed,completed_at", limit: 100 };
+    if (offset) params.offset = offset;
+    try {
+      const res = await c.get(`/teams/${teamGid}/projects`, { params });
+      all.push(...(res.data.data || []));
+      offset = res.data.next_page?.offset || null;
+    } catch (err) {
+      console.warn(" ⚠️  Could not fetch completed projects:", err.message);
+      break;
+    }
+  } while (offset);
+
+  const completedProjects = all.filter(
+    (p) => p.completed && !EXCLUDED_PROJECT_GIDS.has(p.gid) && /^[X89]/i.test(p.name)
+  );
+  console.log(`   ↳ ${completedProjects.length} completed XCF project(s) found`);
+
+  const results = [];
+  for (const project of completedProjects) {
+    const tasks = await fetchTasksForProject(project);
+    let totalCostNZD = 0, totalAssets = 0, totalHours = 0;
+    const memberMap = new Map();
+
+    for (const task of tasks) {
+      const cost   = taskCost(task);
+      const assets = taskAssets(task);
+      const hrs    = estHours(task);
+      totalCostNZD += cost;
+      totalAssets  += assets;
+      totalHours   += hrs;
+      if (task.assignee) {
+        const { gid, name } = task.assignee;
+        if (!memberMap.has(gid)) memberMap.set(gid, { name, totalCostNZD: 0, totalAssets: 0 });
+        const m = memberMap.get(gid);
+        m.totalCostNZD += cost;
+        m.totalAssets  += assets;
+      }
+    }
+
+    results.push({
+      gid:          project.gid,
+      name:         project.name,
+      completedAt:  project.completed_at?.slice(0, 10) || null,
+      totalCostNZD,
+      totalAssets,
+      totalHours,
+      taskCount:    tasks.length,
+      memberCount:  memberMap.size,
+      members:      [...memberMap.values()].sort((a, b) => b.totalCostNZD - a.totalCostNZD),
+    });
+  }
+
+  return results.sort((a, b) => b.totalCostNZD - a.totalCostNZD);
+}
+
 async function fetchReportData() {
   const projects = await fetchAllProjects();
   console.log(`   ↳ Fetching completed tasks from ${projects.length} project(s)...`);
@@ -308,7 +369,10 @@ async function fetchReportData() {
 
   const byDeliverable = [...deliverableMap.values()].sort((a, b) => b.totalCostNZD - a.totalCostNZD);
 
-  return { members, totals, allMissing, byPod, byDeliverable, generatedAt: new Date() };
+  console.log("\n   Fetching completed project costs...");
+  const completedProjects = await fetchCompletedProjectCosts();
+
+  return { members, totals, allMissing, byPod, byDeliverable, completedProjects, generatedAt: new Date() };
 }
 
 module.exports = { fetchReportData };
