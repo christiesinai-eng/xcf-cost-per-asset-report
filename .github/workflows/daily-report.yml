@@ -1,0 +1,55 @@
+name: XCF Cost per Asset — Daily Report
+
+on:
+  schedule:
+    - cron: "0 16 * * *"   # 4:00am NZT (UTC+12) every day
+  workflow_dispatch:         # allows manual trigger from GitHub UI
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write        # needed to push to gh-pages
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run report
+        env:
+          TZ:                     Pacific/Auckland
+          ASANA_TOKEN:            ${{ secrets.ASANA_TOKEN }}
+          ASANA_WORKSPACE_GID:    ${{ secrets.ASANA_WORKSPACE_GID }}
+          ASANA_TEAM_GID:         ${{ secrets.ASANA_TEAM_GID }}
+          SLACK_TOKEN:            ${{ secrets.SLACK_TOKEN }}
+          SLACK_CHANNEL_ID:       ${{ secrets.SLACK_CHANNEL_ID }}
+          DEFAULT_MINUTE_RATE:    ${{ secrets.DEFAULT_MINUTE_RATE }}
+          EXCLUDED_MEMBER_GIDS:   ${{ secrets.EXCLUDED_MEMBER_GIDS }}
+          REPORTS_DIR:            /tmp/reports
+        run: node src/index.js --run-now
+
+      - name: Publish to GitHub Pages
+        run: |
+          REPORT=$(ls /tmp/reports/xcf-cost-per-asset-*.html | sort | tail -1)
+
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+
+          git fetch origin gh-pages 2>/dev/null || true
+          git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+
+          cp "$REPORT" index.html
+
+          git add index.html
+          git commit -m "Update report $(date +%Y-%m-%d)" || echo "No changes"
+          git push origin gh-pages
