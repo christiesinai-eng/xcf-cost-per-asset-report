@@ -15,7 +15,14 @@ const FIELD = {
   MICRO_DELIVERABLE: "1211869929084571", // "Micro deliverables (XCF)" (enum)
 };
 
-// Projects excluded regardless of name prefix
+// Projects whose tasks are excluded from Missing Fields only —
+// request/intake boards where estimated time is never expected
+const REQUEST_PROJECT_GIDS = new Set([
+  "1211868948534511", // XCF: Intake The Creative Foundry
+  "1212203594687934", // The Creative Foundry Roadmap requests
+]);
+
+// Projects excluded from all data — admin boards, duplicates, non-production
 const EXCLUDED_PROJECT_GIDS = new Set([
   "1212300038541375", // XCF: Cost per asset + Asset counter
   "1212867822525791", // XCF: Leave calendar (NOW USE THE NEW WAY)!
@@ -78,10 +85,15 @@ function extractAssetType(task) {
 }
 
 function isMissingFields(task) {
-  // Exclude admin/template task types that will never have cost data
+  // Exclude admin/template task names that will never have cost data
   const name = (task.name || "").toLowerCase();
   if (name.includes("attach deliverables sheet")) return false;
   if (name.includes("[converted to project]"))    return false;
+
+  // Exclude tasks that originated from request/intake projects —
+  // these are briefs/requests, not deliverables, so no estimated time expected
+  const memberships = task.memberships || [];
+  if (memberships.some((m) => REQUEST_PROJECT_GIDS.has(m.project?.gid))) return false;
 
   // Only flag if cost genuinely can't be calculated —
   // i.e. neither the pre-calculated Asset cost nor Estimated time is set
