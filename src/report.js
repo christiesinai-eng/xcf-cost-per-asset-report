@@ -178,7 +178,7 @@ function checkPw(){
   <div class="header-meta">
     <div class="rate">Rate: $${process.env.DEFAULT_MINUTE_RATE || "2.33"} NZD/min (~$${fmt(parseFloat(process.env.DEFAULT_MINUTE_RATE || "2.33") * 60, 0)}/hr)</div>
     <div style="font-size:12px;color:var(--accent2);margin-top:4px;text-align:right">✔ Completed tasks only</div>
-    <div class="gentime">Generated ${generatedAt.toLocaleTimeString("en-NZ")}</div>
+    <div class="gentime">Last updated ${generatedAt.toLocaleDateString("en-NZ", { weekday:"short", day:"numeric", month:"short", year:"numeric" })} at ${generatedAt.toLocaleTimeString("en-NZ", { hour:"2-digit", minute:"2-digit" })} NZT</div>
   </div>
 </div>
 

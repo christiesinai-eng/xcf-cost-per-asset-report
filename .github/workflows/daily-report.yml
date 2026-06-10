@@ -31,8 +31,6 @@ jobs:
           ASANA_TOKEN:            ${{ secrets.ASANA_TOKEN }}
           ASANA_WORKSPACE_GID:    ${{ secrets.ASANA_WORKSPACE_GID }}
           ASANA_TEAM_GID:         ${{ secrets.ASANA_TEAM_GID }}
-          SLACK_TOKEN:            ${{ secrets.SLACK_TOKEN }}
-          SLACK_CHANNEL_ID:       ${{ secrets.SLACK_CHANNEL_ID }}
           DEFAULT_MINUTE_RATE:    ${{ secrets.DEFAULT_MINUTE_RATE }}
           EXCLUDED_MEMBER_GIDS:   ${{ secrets.EXCLUDED_MEMBER_GIDS }}
           REPORTS_DIR:            /tmp/reports
