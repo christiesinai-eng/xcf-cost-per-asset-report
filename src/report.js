@@ -203,35 +203,6 @@ function generateHtml(data) {
 </head>
 <body>
 
-<!-- ── password overlay ── -->
-<div id="pw-overlay" style="position:fixed;inset:0;background:#0f1117;display:flex;align-items:center;justify-content:center;z-index:9999">
-  <div style="background:#1a1d27;border:1px solid #2e3250;border-radius:14px;padding:40px 36px;width:320px;text-align:center">
-    <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">XCF Cost per Asset</div>
-    <div style="font-size:13px;color:#8892b0;margin-bottom:24px">Enter the password to view this report</div>
-    <input id="pw-input" type="password" placeholder="Password" autofocus
-      onkeydown="if(event.key==='Enter')checkPw()"
-      style="width:100%;padding:10px 14px;background:#0f1117;border:1px solid #2e3250;border-radius:8px;color:#fff;font-size:15px;text-align:center;outline:none;margin-bottom:12px;box-sizing:border-box"/>
-    <button onclick="checkPw()"
-      style="width:100%;padding:10px;background:#6c63ff;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">View Report</button>
-    <div id="pw-error" style="font-size:12px;color:#f87171;margin-top:10px;display:none">Incorrect password. Please try again.</div>
-  </div>
-</div>
-<script>
-(function(){
-  if(sessionStorage.getItem('xcf-cpa-auth')==='1'){
-    document.getElementById('pw-overlay').style.display='none';
-  }
-})();
-function checkPw(){
-  if(document.getElementById('pw-input').value==='Cost'){
-    sessionStorage.setItem('xcf-cpa-auth','1');
-    document.getElementById('pw-overlay').style.display='none';
-  } else {
-    document.getElementById('pw-error').style.display='block';
-    document.getElementById('pw-input').value='';
-  }
-}
-</script>
 
 <div class="header">
   <div>
