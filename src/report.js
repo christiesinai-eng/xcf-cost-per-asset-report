@@ -16,6 +16,53 @@ function fmt(n, d = 0) {
   }).format(n || 0);
 }
 
+// Pre-compute task fields so we don't embed raw custom_fields/memberships in the HTML.
+const _LEAN = {
+  ESTIMATED_TIME: "1203387567618671",
+  MINUTE_RATE:    "1213826548214530",
+  ASSET_COUNT:    "1212213385632145",
+  ASSET_COST:     "1213828392202051",
+  PODS:           "1211165589636938",
+};
+function _getNum(task, gid) {
+  const f = (task.custom_fields || []).find(f => f.gid === gid);
+  return f ? (f.number_value ?? null) : null;
+}
+function _getEnum(task, gid) {
+  const f = (task.custom_fields || []).find(f => f.gid === gid);
+  return f ? (f.enum_value?.name ?? null) : null;
+}
+function _leanTask(task) {
+  const defaultRate = parseFloat(process.env.DEFAULT_MINUTE_RATE || "2.33");
+  const pre   = _getNum(task, _LEAN.ASSET_COST);
+  const mins  = _getNum(task, _LEAN.ESTIMATED_TIME) || 0;
+  const rate  = _getNum(task, _LEAN.MINUTE_RATE) ?? defaultRate;
+  return {
+    gid:          task.gid,
+    name:         task.name,
+    completed:    task.completed,
+    completed_at: task.completed_at,
+    due_on:       task.due_on,
+    projectName:  task.projectName,
+    _cost:        Math.round(((pre != null && pre > 0) ? pre : mins * rate) * 100) / 100,
+    _hours:       Math.round(mins / 60 * 100) / 100,
+    _assets:      _getNum(task, _LEAN.ASSET_COUNT) || 1,
+    _pod:         _getEnum(task, _LEAN.PODS),
+  };
+}
+function _leanMissing(task) {
+  return {
+    gid:          task.gid,
+    name:         task.name,
+    memberName:   task.memberName,
+    projectName:  task.projectName,
+    completed_at: task.completed_at,
+    _hasEst:      !!(_getNum(task, _LEAN.ESTIMATED_TIME)),
+    _hasCost:     !!(_getNum(task, _LEAN.ASSET_COST) > 0),
+    _pod:         _getEnum(task, _LEAN.PODS),
+  };
+}
+
 function generateHtml(data) {
   const { members, totals, allOverdue, allMissing, byPod, byDeliverable, completedProjects, generatedAt } = data;
 
@@ -27,12 +74,28 @@ function generateHtml(data) {
     ? fmtNZD(totals.totalCostNZD / totals.totalAssets)
     : "—";
 
-  const membersJson           = JSON.stringify(members);
+  const membersJson           = JSON.stringify(members.map(m => ({
+    gid:          m.gid,
+    name:         m.name,
+    totalHours:   m.totalHours,
+    totalCostNZD: m.totalCostNZD,
+    totalAssets:  m.totalAssets,
+    tasks:        (m.tasks || []).map(_leanTask),
+  })));
   const totalsJson            = JSON.stringify(totals);
   const byPodJson             = JSON.stringify(byPod || []);
-  const byDelJson             = JSON.stringify(byDeliverable || []);
+  const byDelJson             = JSON.stringify((byDeliverable || []).map(d => ({
+    name:         d.name,
+    totalCostNZD: d.totalCostNZD,
+    totalAssets:  d.totalAssets,
+    taskCount:    d.taskCount,
+    tasks:        (d.tasks || [])
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 50)
+      .map(t => ({ gid: t.gid, name: t.name, memberName: t.memberName, cost: t.cost })),
+  })));
   const completedProjectsJson = JSON.stringify(completedProjects || []);
-  const allMissingJson        = JSON.stringify(allMissing || []);
+  const allMissingJson        = JSON.stringify((allMissing || []).map(_leanMissing));
   const generatedAtJson       = JSON.stringify(generatedAt.toISOString());
 
   return `<!DOCTYPE html>
@@ -413,33 +476,10 @@ const fmt    = (n,d=0) => new Intl.NumberFormat('en-NZ',{minimumFractionDigits:d
 const esc    = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const asanaLink = (gid) => gid ? \`https://app.asana.com/0/0/\${gid}/f\` : '#';
 
-function getNumField(task, gid) {
-  const f = (task.custom_fields||[]).find(f=>f.gid===gid);
-  return f ? (f.number_value ?? null) : null;
-}
-const FIELD_ESTIMATED_TIME = '1203387567618671'; // minutes
-const FIELD_MINUTE_RATE    = '1213826548214530';
-const FIELD_ASSET_COUNT    = '1212213385632145';
-const FIELD_ASSET_COST     = '1213828392202051';
-const DEFAULT_RATE         = 2.33;
-
-function taskCostCalc(task) {
-  const pre = getNumField(task, FIELD_ASSET_COST);
-  if (pre != null && pre > 0) return pre;
-  const mins = getNumField(task, FIELD_ESTIMATED_TIME) || 0; // minutes
-  const rate = getNumField(task, FIELD_MINUTE_RATE) ?? DEFAULT_RATE;
-  return mins * rate; // minutes × $/min = $
-}
-function taskHours(task) {
-  const mins = getNumField(task, FIELD_ESTIMATED_TIME) || 0;
-  return mins / 60; // convert to hours for display
-}
-function taskAssets(task) { return getNumField(task, FIELD_ASSET_COUNT) || 1; }
-function getEnumField(task, gid) {
-  const f = (task.custom_fields||[]).find(f=>f.gid===gid);
-  return f ? (f.enum_value?.name ?? null) : null;
-}
-const FIELD_PODS = '1211165589636938';
+// Tasks have pre-computed values — no need to walk custom_fields at runtime
+function taskCostCalc(t) { return t._cost  || 0; }
+function taskHours(t)    { return t._hours || 0; }
+function taskAssets(t)   { return t._assets || 1; }
 
 const PALETTE = ['#6c63ff','#00d4aa','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#22c55e','#f97316','#06b6d4'];
 
@@ -508,7 +548,7 @@ function renderOverview() {
   const maxD = BY_DEL[0]?.totalCostNZD || 1;
   document.getElementById('deliverable-bars').innerHTML = BY_DEL.slice(0,15).map((d,i) => {
     const safeId = 'del_' + d.name.replace(/[^a-zA-Z0-9]/g,'_');
-    const topTasks = (d.tasks||[]).slice().sort((a,b)=>b.cost-a.cost).slice(0,20);
+    const topTasks = (d.tasks||[]).slice(0,20);
     const taskRows = topTasks.map(t=>\`
       <div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
         <div style="font-size:11px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">
@@ -793,15 +833,15 @@ function filterMissing() {
     t.name.toLowerCase().includes(q) || (t.memberName||'').toLowerCase().includes(q)
   );
   const {col,dir} = sortState['missing']||{col:4,dir:'desc'};
-  const podOf = t => { const f=(t.custom_fields||[]).find(f=>f.gid===FIELD_PODS); return f?.enum_value?.name||'—'; };
+  const podOf = t => t._pod || '—';
   const getVal = (t,c) => [t.name, t.memberName||'', t.projectName||'', podOf(t), t.completed_at||''][c];
   const sorted = [...filtered].sort((a,b)=>{const av=getVal(a,col),bv=getVal(b,col);return dir==='asc'?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);});
   document.getElementById('missing-count').textContent =
     sorted.length + ' task' + (sorted.length!==1?'s':'') + ' contributing $0 to cost totals';
   document.getElementById('missing-body').innerHTML = sorted.map(t => {
     const pod = podOf(t);
-    const hasEst  = (t.custom_fields||[]).some(f=>f.gid==='1203387567618671' && f.number_value);
-    const hasCost = (t.custom_fields||[]).some(f=>f.gid==='1213828392202051' && f.number_value);
+    const hasEst  = t._hasEst;
+    const hasCost = t._hasCost;
     const fix = !hasEst && !hasCost
       ? '<span class="badge yellow">Add Estimated time or Asset cost</span>'
       : !hasEst
@@ -844,7 +884,7 @@ function clearQBtns() { document.querySelectorAll('.q-btn').forEach(b => b.class
 
 function initDateRange() {
   // Populate POD dropdown
-  const pods = [...new Set(getAllTasksFlat().map(t=>getEnumField(t,FIELD_PODS)).filter(Boolean))].sort();
+  const pods = [...new Set(getAllTasksFlat().map(t=>t._pod).filter(Boolean))].sort();
   const podSel = document.getElementById('dr-pod');
   pods.forEach(p => { const o=document.createElement('option'); o.value=o.textContent=p; podSel.appendChild(o); });
 
@@ -871,7 +911,7 @@ function applyDateRange() {
     if (!dateStr) return false;
     const d = new Date(dateStr);
     if (d < fromD || d > toD) return false;
-    if (pod    && getEnumField(t, FIELD_PODS) !== pod) return false;
+    if (pod    && (t._pod || null) !== pod) return false;
     if (person && t._memberName !== person) return false;
     return true;
   });
@@ -892,7 +932,7 @@ function applyDateRange() {
   document.getElementById('dr-count').textContent = sorted.length+' completed task'+(sorted.length!==1?'s':'')+' delivered in range';
   document.getElementById('dr-body').innerHTML = sorted.map(t => {
     const h=taskHours(t), a=taskAssets(t), cost=taskCostCalc(t);
-    const podName = getEnumField(t, FIELD_PODS) || '—';
+    const podName = t._pod || '—';
     const ov = t.due_on && new Date(t.due_on)<new Date(new Date().toDateString());
     return \`<tr>
       <td><a href="\${asanaLink(t.gid)}" target="_blank">\${esc(t.name)}</a></td>
